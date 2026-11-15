@@ -16,6 +16,9 @@ A settings menu at the first start (smash A button after launching homebrew to s
 - Dynamic resolution
 - Camera speed: 1% to 100%
 - The list of achievements
+
+Additional improvements:
+- Camera speed in game settings: 1% to 100%
 - 1920x1080 output when docked on a 1080p TV
 - The Switch's buttons in the game's interface (the button pictures and the controller picture)
 - Removed any notification about installing on drive and removed option for choosing mass storage from game settings.
