@@ -3,6 +3,8 @@ Static Recompilation of The Witcher 2: Definitive Edition 0.0.1.2 for Nintendo S
 
 No game files are in this repository. Tested tutorial, prologue and beginning of first act.
 
+If you want to contribute, you can send me `tw2de_variants.txt` from `tw2de_nx/shaders` folder after playing some part of game, the best would be if you would send it after finishing whole game.
+
 ## Additions over the Xbox 360 release
 
 A settings menu at the first start (smash A button after launching homebrew to show it again), with separate graphics settings for handheld and docked:
