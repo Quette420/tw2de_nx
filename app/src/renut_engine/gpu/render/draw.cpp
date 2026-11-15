@@ -2057,7 +2057,9 @@ plume::RenderFramebuffer *MotionFramebufferLocked(const Targets &t) {
     m.samples = c->samples;
     m.layout = plume::RenderTextureLayout::UNKNOWN;
     m.cleared_frame = ~uint64_t(0);
-    RGPU_INFO("[motion] motion vector target {}x{}, {} samples", w, h, u32(c->samples));
+    static uint32_t logged = 0;  // TW2 (2026-11-15): made again at each dynamic-resolution level
+    if (logged++ < 8)
+      RGPU_INFO("[motion] motion vector target {}x{}, {} samples", w, h, u32(c->samples));
   }
   // TW2 (2026-11-15): one colour target and a pixel shader with a second colour output: the filler in between.
   const bool filler = !c1 && m.second_output;
@@ -7780,8 +7782,13 @@ int32_t UpscaleFilter() {
 // pixel), and that picture is then enlarged over the output target with the chosen filter (DrawStateLocked's end,
 // early_upscale.h EarlyUpscaleCopyLocked; FSR 1: EASU, then RCAS). A larger scene (1600x900, 1920x1080) keeps the
 // game's own scaling. 'w', 'h': the scene's size (tw2de_scene_width / tw2de_scene_height, cpu/tw2de_scene_size.cpp).
+// TW2 (2026-11-15, the user: no Upscaler choice with dynamic resolution): with dynamic resolution's levels as target
+// sizes the same is done from the level's variant of the output target (the one the pass's picture was resolved
+// from): the pass drawn at the scene's size there, then enlarged over the output's own variant. At the full size of a
+// 1280x720 scene on a 1280x720 output there is nothing to enlarge: the pass as the game draws it.
 bool Tw2FinalUpscale(const GuestDevice &device, const ShaderRecord *ps, uint32_t &w, uint32_t &h) {
-  if (!IsDeko3D() || !Tw2FinalPass(device, ps) || DrsOn())  // dynamic resolution: the last pass enlarges its part
+  // Dynamic resolution the way of 2026-11-07 (targets of the full size drawn in part): the last pass enlarges its part.
+  if (!IsDeko3D() || !Tw2FinalPass(device, ps) || (DrsOn() && !DrsSized()))
     return false;
   const int32_t filter = UpscaleFilter();
   if (filter != 1 && filter != 3)
@@ -7791,6 +7798,11 @@ bool Tw2FinalUpscale(const GuestDevice &device, const ShaderRecord *ps, uint32_t
   h = sw > 0 && sh > 0 ? uint32_t(sh) : 672u;
   if (w > 1280 || h > 720)
     return false;
+  if (DrsSized()) {  // TW2 (2026-11-15): the scene's size in this frame's level's targets (host pixels)
+    const RenderScale level = DrsSceneScale();
+    w = uint32_t(std::max(level.Coord(int32_t(w)), 1));
+    h = uint32_t(std::max(level.Coord(int32_t(h)), 1));
+  }
   return Output1080p() || w < 1280 || h < 720;
 }
 // Once: which shader, and the game's own constants of the draw (c0, c1: the sizes Renut's shaders read; c253-c255: the
@@ -8245,6 +8257,14 @@ struct MotionState {
   uint64_t jittered = 0;
   float drawn_jitter[2] = {};
   bool jitter_mixed = false;
+  // TW2 (2026-11-15, the NPCs' moving arms ghosting with FSR 3.1): the 2D textures the scene draws' vertex shaders
+  // sample (the skinned meshes' bone rows: 768x256 floats at fetch slot 16, two textures the game fills in turn),
+  // this frame's ([cur]) and the last one's: guest address, texture word, size and format. MotionPrepareLocked.
+  struct VertexTexture {
+    u32 va = 0, word = 0, width = 0, height = 0, format = 0;
+  };
+  std::vector<VertexTexture> vertex_textures[2];
+  uint64_t vertex_previous = 0;  // this frame's scene draws that read a last frame's texture (the report's)
   // tw2de (2026-11-07, tw2de_diag_camera_steps): one big scene draw followed from frame to frame (its key), how
   // much its registers 8-11 (the game's world-view-projection rows) changed since last frame (sum of |differences|),
   // and the frame starts' times: a camera turning at a steady speed changes them by the same amount every frame.
@@ -8275,9 +8295,14 @@ void MotionFrameStartLocked() {
       RGPU_INFO("[motion] last frame: {} scene draws with last frame's constants, {} without", m.matched, m.unmatched);
     m.last_report = now;
   }
+  if (now == m.last_report)
+    RGPU_INFO("[motion] last frame: {} scene draws read a last frame's vertex texture (bones); {} vertex textures",
+              m.vertex_previous, m.vertex_textures[m.cur].size());
   m.cur ^= 1;
   m.frames[m.cur].Clear();
   m.views[m.cur].count = 0;  // TW2 (2026-11-15)
+  m.vertex_textures[m.cur].clear();
+  m.vertex_previous = 0;
   m.last_view = 0;
   ++g_motion_target.frame;
   m.proj_set = false;
@@ -8470,6 +8495,54 @@ void MotionPrepareLocked(const GuestDevice &device, const DrawCall &call, const 
   (v.has_prev ? m.matched : m.unmatched)++;
   sc.motion = 1u | (mode == 2 ? 2u : 0u);
   sc.motion_prev = 4u | (4u << 16);
+  // TW2 (2026-11-15): last frame's texture for each 2D texture the vertex shader samples (xenos_glsl.cpp
+  // MotionVectorPass: dk_tex_prev_bK takes the slot's 3D word). The same texture if last frame's scene draws sampled
+  // it too (the terrain's; a skin texture the game did not swap); else the one of its size and format they sampled
+  // that this frame's do not (the game's other skin texture: the port's copy of it still holds last frame's bones,
+  // it is uploaded only when bound); else this frame's (no motion of its own, as before).
+  if (const u32 vs_textures = vs->entry ? vs->entry->textureFetchMask : 0u) {
+    std::vector<MotionState::VertexTexture> &now = m.vertex_textures[m.cur];
+    const std::vector<MotionState::VertexTexture> &before = m.vertex_textures[m.cur ^ 1];
+    for (u32 r = 0; r < d3d::kTextureFetchSlots; ++r) {
+      const u32 word = sc.texture_indices[0][r];
+      if (!((vs_textures >> r) & 1u) || word == kNullTextureSlot)
+        continue;
+      const u32 va = device.U32(d3d::kDeviceOffsetTextures + r * 4);
+      const TextureFetch fetch = DeviceTextureFetch(device.dev(), r);
+      u32 w = 0, h = 0, d = 0;
+      if (fetch.IsTexture())
+        fetch.Size(w, h, d);
+      const u32 format = u32(fetch.Format());
+      bool noted = false;
+      for (MotionState::VertexTexture &t : now) {
+        if (t.va == va) {
+          t.word = word;
+          noted = true;
+        }
+      }
+      if (!noted && now.size() < 8)
+        now.push_back({va, word, w, h, format});
+      u32 previous = word;
+      bool sampled_before = false;
+      for (const MotionState::VertexTexture &t : before)
+        sampled_before = sampled_before || t.va == va;
+      if (!sampled_before) {
+        for (const MotionState::VertexTexture &t : before) {
+          if (t.width != w || t.height != h || t.format != format)
+            continue;
+          bool sampled_now = false;
+          for (const MotionState::VertexTexture &c : now)
+            sampled_now = sampled_now || c.va == t.va;
+          if (!sampled_now) {
+            previous = t.word;
+            ++m.vertex_previous;
+            break;
+          }
+        }
+      }
+      sc.texture_indices[1][r] = previous;
+    }
+  }
   // FSR 3: the scene jittered.
   // Only single-sampled: FSR does not run on a multisampled scene (anti-aliasing on), whose picture would shake.
   if (Fsr3On() && targets.colors[0]->samples == plume::RenderSampleCount::COUNT_1) {
@@ -8503,6 +8576,15 @@ Fsr3SceneInputs MotionSceneInputsLocked() {
   if (t.scene && t.scene->scale.drs) {
     in.width = std::min(DrsDrawn(t.width), t.width);
     in.height = std::min(DrsDrawn(t.height), t.height);
+  }
+  // TW2 (2026-11-15, FSR 3.1 with dynamic resolution's levels as target sizes): the motion and depth targets (and
+  // the picture) have this frame's level's size and are read whole; FSR's own textures are made once, for the full
+  // size (the first level's), and it is told each frame's render size (as with the way of 2026-11-07 above).
+  if (t.scene_depth && t.scene_depth->scale.Dynamic()) {
+    RenderScale full;
+    full.code = RenderScale::kDrsFirst;
+    in.max_width = std::max(in.max_width, full.Size(t.scene_depth->width));
+    in.max_height = std::max(in.max_height, full.Size(t.scene_depth->height));
   }
   in.single_sample = t.samples == plume::RenderSampleCount::COUNT_1 && t.scene_depth &&
                      t.scene_depth->samples == plume::RenderSampleCount::COUNT_1;
@@ -9597,6 +9679,13 @@ bool DrawStateLocked(const u8 *device_state, const DrawCall &call, const ReplayC
                              flags ? u32(kZeroCopyFlagBytes) : 256u);
   }
 #endif
+  // TW2 (2026-11-15): the vertex shader's previous-frame textures (MotionVectorPass: dk_tex_prev_bK is bound from
+  // the 3D word of its 2D texture's slot): this frame's texture, unless MotionPrepareLocked knows last frame's.
+  if (const u32 vs_textures = vs->entry ? vs->entry->textureFetchMask : 0u) {
+    for (u32 r = 0; r < d3d::kTextureFetchSlots; ++r)
+      if (((vs_textures >> r) & 1u) && sc.texture_indices[0][r] != kNullTextureSlot)
+        sc.texture_indices[1][r] = sc.texture_indices[0][r];
+  }
   MotionPrepareLocked(device, call, vs, ps, *declaration, vs_constants, vs_used, targets, sc,
                       viewport.viewport.minDepth, viewport.viewport.maxDepth);  // tw2de (2026-11-06)
   UploadAllocation sc_alloc;
@@ -10199,7 +10288,8 @@ bool DrawStateLocked(const u8 *device_state, const DrawCall &call, const ReplayC
   // output phase begins here; the same surface at 1280x720) with the Upscaler's filter, before the GUI draws on it.
   if (tw2_final_upscale && targets.color_count == 1 && targets.colors[0] && !export_count) {
     HostSurface *corner = targets.colors[0];
-    if (Output1080p()) {
+    // TW2 (2026-11-15): with dynamic resolution too (the corner is the level's variant, the output's the 1x one).
+    if (Output1080p() || DrsSized()) {
       bool changed = SetOutputPhaseLocked(true);
       changed |= PromoteOutputTargetLocked(corner->out_key);
       if (changed)
@@ -12258,11 +12348,15 @@ bool ColourMaterialiseLocked(HostTexture &d) {
     ok = same && DrawResolveCopy(source, &d, rect, 0, 0, -1, 0);
   } else if (d.held && d.held_current) {
     d.held_current = false;
-    // The taken image as the target it was taken from, for DrawResolveCopy (the console's scale: the host's size).
+    // The taken image as the target it was taken from, for DrawResolveCopy: at its host size, scale 1.
+    // TW2 (2026-11-15, the lines at the screen's edge at a dynamic-resolution level change): not d.scale. With one of
+    // dynamic resolution's levels as the scale, SwapDepthImageLocked took the host size times the scale as the
+    // image's size (592x311 became 548x288), so the next take found the image "of another size", retired it and
+    // made a new one.
     HostSurface image;
     image.width = d.held->host_width;
     image.height = d.held->host_height;
-    image.scale = d.scale;
+    image.scale = RenderScale{};
     image.depth = false;
     image.format = d.held->format;
     image.samples = d.held->samples;
@@ -12285,9 +12379,18 @@ bool ColourMaterialiseLocked(HostTexture &d) {
 // The destination takes the target's image; the target takes the destination's previous one (or a new one, cleared
 // when it is first bound).
 bool ColourTakeLocked(HostTexture &d, HostSurface &s) {
+  const uint64_t diag_target = s.generation, diag_spare = d.held ? d.held->generation : 0;  // (frame dump's note)
+  bool diag_retired = false;
   if (d.held && (!d.held->colour || d.held->host_width != s.scale.Size(s.width) ||
                  d.held->host_height != s.scale.Size(s.height) || d.held->format != s.format ||
                  d.held->samples != s.samples)) {
+    diag_retired = true;
+    if (g_dump.active)
+      FrameDumpNoteLocked(fmt::format("  [take] spare {} of {:08X} retired: colour {} {}x{} format {} samples {}; target "
+                                      "{}x{} format {} samples {}", diag_spare, d.guest_va, d.held->colour,
+                                      d.held->host_width, d.held->host_height, u32(d.held->format),
+                                      u32(d.held->samples), s.scale.Size(s.width), s.scale.Size(s.height),
+                                      u32(s.format), u32(s.samples)));
     RetireDepthImageLocked(*d.held);
     d.held.reset();
   }
@@ -12304,6 +12407,10 @@ bool ColourTakeLocked(HostTexture &d, HostSurface &s) {
   SwapDepthImageLocked(s, *d.held);
   d.held_current = true;
   ++g_texture_epoch;
+  if (g_dump.active)
+    FrameDumpNoteLocked(fmt::format("  [take] {:08X} takes image {} of target {:08X}; the target goes on in {} ({}{})",
+                                    d.guest_va, diag_target, s.guest_va, s.generation,
+                                    fresh ? "new" : "the spare", diag_retired ? ", the spare was retired" : ""));
   static const bool poison = REXCVAR_GET(tw2de_diag_colour_handover_poison);
   if (fresh || poison) {
     s.needs_clear = true;  // BindTargets: a new image starts transparent black (or, the test, any given one magenta)
@@ -12333,6 +12440,10 @@ void ColourHandOverBeforeWriteLocked(HostSurface *surface, int take) {
     }
   }
   const int why = g_colour_mat_why ? g_colour_mat_why : 1;
+  if (g_dump.active)
+    FrameDumpNoteLocked(fmt::format("  [ho] before a write of {:08X} image {} writes {}: take {}, {} holders, taker "
+                                    "{:08X}, why {}", surface->guest_va, surface->generation, surface->writes, take,
+                                    holders.size(), taker ? taker->guest_va : 0, why));
   for (HostTexture *d : holders)
     if (d != taker) {
       if (LookAheadDeadLocked(*d))  // TW2 (2026-11-14, tw2de_lookahead)
@@ -12584,9 +12695,20 @@ int ColourPartPrepareLocked(HostSurface *c, const plume::RenderRect &rect) {
     if (!a->held_current || LookAheadDeadLocked(*a)) {
       g_colour_part.a = a;
       g_colour_part.twin_generation = twin->held_generation;
+      if (g_dump.active)
+        FrameDumpNoteLocked(fmt::format("  [part] prepare {:08X} image {}: 5 (holder {:08X}, twin {:08X} holding {})",
+                                        c->guest_va, c->generation, b->guest_va, a->guest_va, twin->held_generation));
       return 5;
     }
   }
+  if (g_dump.active)
+    FrameDumpNoteLocked(fmt::format("  [part] prepare {:08X} image {}: 6 (holder {:08X}; twin record: {})", c->guest_va,
+                                    c->generation, b->guest_va,
+                                    !twin ? std::string("none")
+                                          : fmt::format("holder {:08X} image {} writes {} / {} held {}",
+                                                        twin->holder ? twin->holder->guest_va : 0,
+                                                        twin->image_generation, twin->writes, c->writes,
+                                                        twin->held_generation)));
   return 6;
 }
 
@@ -12602,11 +12724,11 @@ bool DrawHeldIntoSurfaceLocked(HostTexture &d, HostSurface *to) {
   plume::RenderFramebuffer *framebuffer = GetFramebufferLocked(colors, 1, nullptr);
   if (!framebuffer)
     return false;
-  // The held image as a surface for its sample slot (as ColourMaterialiseLocked).
+  // The held image as a surface for its sample slot (as ColourMaterialiseLocked: its host size, scale 1).
   HostSurface image;
   image.width = d.held->host_width;
   image.height = d.held->host_height;
-  image.scale = d.scale;
+  image.scale = RenderScale{};
   image.depth = false;
   image.format = d.held->format;
   image.samples = d.held->samples;
@@ -12653,8 +12775,14 @@ void ColourPartBindLocked(HostSurface *c, int kind) {
     ColourHandOverBeforeWriteLocked(c, 0);
     return;
   }
+  const int diag_asked = kind;
   if (kind == 5 && (!a || !a->held || a->held_current || a->held->generation != g_colour_part.twin_generation))
     kind = 6;
+  if (g_dump.active)
+    FrameDumpNoteLocked(fmt::format("  [part] bind {:08X} image {}: asked {}, does {} (twin's image {}, holder's spare {})",
+                                    c->guest_va, c->generation, diag_asked, kind, a && a->held ? a->held->generation : 0,
+                                    b->held ? b->held->generation : 0));
+  const uint64_t twin_generation = g_colour_part.twin_generation;
   if (kind == 5)
     std::swap(a->held, b->held);  // B's spare is the equal image now; A keeps B's
   if (!ColourTakeLocked(*b, *c)) {
@@ -12664,12 +12792,23 @@ void ColourPartBindLocked(HostSurface *c, int kind) {
     ColourHandOverBeforeWriteLocked(c, 0);
     return;
   }
+  // TW2 (2026-11-15): 5 only when the target really goes on in the twin's image. In any other (the take made a new
+  // one: the twin's was retired) nothing outside the rect is defined: the picture is copied, as in 6. (Such an image
+  // was left as it came: undefined memory outside the bloom passes' corner, which the composite's taps at the
+  // corner's edge read: a bright line along the screen's bottom or right edge for a frame or two after a
+  // dynamic-resolution level change, when the images were new.)
+  if (kind == 5 && c->generation != twin_generation)
+    kind = 6;
   // T's image is the other one now; B holds the picture. Nothing is cleared: 5 needs what is outside the rect, 6
   // copies all of it.
   c->needs_clear = false;
   c->poison = false;
   if (kind == 6) {
-    if (!DrawHeldIntoSurfaceLocked(*b, c)) {
+    const bool diag_copied = DrawHeldIntoSurfaceLocked(*b, c);
+    if (g_dump.active)
+      FrameDumpNoteLocked(fmt::format("  [part] copy of image {} into {}: {}", b->held ? b->held->generation : 0,
+                                      c->generation, diag_copied ? "drawn" : "FAILED"));
+    if (!diag_copied) {
       static bool logged = false;
       if (!logged) {
         logged = true;
@@ -12717,6 +12856,9 @@ void ColourHandOverDrawStartLocked(const GuestDevice &device, const DrawCall &ca
       if (kind == -2)
         continue;  // no destination holds it any more
     }
+    if (g_dump.active)
+      FrameDumpNoteLocked(fmt::format("  [ho] draw into {:08X} image {} writes {} ({} holding it): kind {}, test {}",
+                                      c->guest_va, c->generation, c->writes, c->handed, kind, why));
     if (kind) {
       g_colour_take_pending[g_colour_take_pending_count++] = {c, kind};
       continue;
