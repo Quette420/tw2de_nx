@@ -11,6 +11,7 @@
 #include <deque>
 #include <filesystem>
 #include <fstream>
+#include <zstd.h>
 #include <iterator>
 #include <memory>
 #include <mutex>
@@ -580,45 +581,90 @@ struct ListHeader {
   u32 streams;
 };
 
-// TW2 (2026-11-15): the text form. The first line "# renut pipeline list: version V key K streams S", then each
-// record (EncodeRecord's bytes, without the size before them) as lowercase hex on a line of its own. Lines starting
-// with '#' after the first are skipped (the headers of joined lists), and so are lines that do not decode (a line cut
-// short when the game was closed). Joining the files of several runs, or sort -u (the header sorts first), merges them.
+// @T@ (2026-11-15): the text form. The first line "# renut pipeline list: version V key K streams S zstd", then each
+// record (EncodeRecord's bytes, without the size before them) zstd-compressed (level 19, its size in the frame) and
+// base64-encoded, on a line of its own: 1,028-byte records (63 % zeros) become ~400 characters (hex: 2,057). Lines
+// starting with '#' after the first are skipped (the headers of joined lists), and so are lines that do not decode (a
+// line cut short when the game was closed). Joining the files of several runs, or sort -u (the header sorts first),
+// merges them. A list of the night's first text form (hex lines: the header without "zstd") is read and written again
+// in this one.
 std::string ListHeaderLine() {
-  return fmt::format("# renut pipeline list: version {} key {} streams {}\n", kListVersion, sizeof(PipelineKey),
+  return fmt::format("# renut pipeline list: version {} key {} streams {} zstd\n", kListVersion, sizeof(PipelineKey),
                      kMaxVertexStreams);
 }
-bool ListHeaderOk(const std::string &line) {
+// 'zstd': the lines are base64 of zstd (else hex).
+bool ListHeaderOk(const std::string &line, bool &zstd) {
   const size_t at = line.find("version ");
   unsigned version = 0, key = 0, streams = 0;
+  zstd = line.find(" zstd") != std::string::npos;
   return at != std::string::npos &&
          std::sscanf(line.c_str() + at, "version %u key %u streams %u", &version, &key, &streams) == 3 &&
          version == kListVersion && key == sizeof(PipelineKey) && streams == kMaxVertexStreams;
 }
+constexpr char kBase64[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 std::string ListLine(const std::vector<char> &record) {
-  static constexpr char kHex[] = "0123456789abcdef";
-  std::string line(record.size() * 2 + 1, '\n');
-  for (size_t i = 0; i < record.size(); ++i) {
-    const unsigned b = static_cast<unsigned char>(record[i]);
-    line[2 * i] = kHex[b >> 4];
-    line[2 * i + 1] = kHex[b & 15];
+  std::vector<char> z(ZSTD_compressBound(record.size()));
+  size_t n = ZSTD_compress(z.data(), z.size(), record.data(), record.size(), 19);
+  if (ZSTD_isError(n))
+    return {};
+  std::string line;
+  line.reserve((n + 2) / 3 * 4 + 1);
+  for (size_t i = 0; i < n; i += 3) {
+    const unsigned b0 = static_cast<unsigned char>(z[i]);
+    const unsigned b1 = i + 1 < n ? static_cast<unsigned char>(z[i + 1]) : 0u;
+    const unsigned b2 = i + 2 < n ? static_cast<unsigned char>(z[i + 2]) : 0u;
+    const unsigned v = b0 << 16 | b1 << 8 | b2;
+    line += kBase64[v >> 18];
+    line += kBase64[(v >> 12) & 63];
+    line += i + 1 < n ? kBase64[(v >> 6) & 63] : '=';
+    line += i + 2 < n ? kBase64[v & 63] : '=';
   }
+  line += '\n';
   return line;
 }
-bool ListLineBytes(const std::string &line, std::vector<char> &out) {
-  if (line.size() % 2)
-    return false;
-  out.resize(line.size() / 2);
-  auto nibble = [](char c) -> int {
-    return c >= '0' && c <= '9' ? c - '0' : c >= 'a' && c <= 'f' ? c - 'a' + 10 : c >= 'A' && c <= 'F' ? c - 'A' + 10 : -1;
-  };
-  for (size_t i = 0; i < out.size(); ++i) {
-    const int hi = nibble(line[2 * i]), lo = nibble(line[2 * i + 1]);
-    if (hi < 0 || lo < 0)
+bool ListLineBytes(const std::string &line, std::vector<char> &out, bool zstd) {
+  if (!zstd) {  // the hex lines of the first text form
+    if (line.size() % 2)
       return false;
-    out[i] = char(hi << 4 | lo);
+    out.resize(line.size() / 2);
+    auto nibble = [](char c) -> int {
+      return c >= '0' && c <= '9' ? c - '0' : c >= 'a' && c <= 'f' ? c - 'a' + 10 : c >= 'A' && c <= 'F' ? c - 'A' + 10 : -1;
+    };
+    for (size_t i = 0; i < out.size(); ++i) {
+      const int hi = nibble(line[2 * i]), lo = nibble(line[2 * i + 1]);
+      if (hi < 0 || lo < 0)
+        return false;
+      out[i] = char(hi << 4 | lo);
+    }
+    return true;
   }
-  return true;
+  if (line.empty() || line.size() % 4)
+    return false;
+  auto value = [](char c) -> int {
+    return c >= 'A' && c <= 'Z' ? c - 'A' : c >= 'a' && c <= 'z' ? c - 'a' + 26 : c >= '0' && c <= '9' ? c - '0' + 52
+           : c == '+' ? 62 : c == '/' ? 63 : -1;
+  };
+  std::vector<char> z;
+  z.reserve(line.size() / 4 * 3);
+  for (size_t i = 0; i < line.size(); i += 4) {
+    const int a = value(line[i]), b = value(line[i + 1]);
+    const bool pad2 = line[i + 2] == '=', pad3 = line[i + 3] == '=';
+    const int c = pad2 ? 0 : value(line[i + 2]), d = pad3 ? 0 : value(line[i + 3]);
+    if (a < 0 || b < 0 || c < 0 || d < 0 || (pad2 && !pad3) || ((pad2 || pad3) && i + 4 != line.size()))
+      return false;
+    const unsigned v = unsigned(a) << 18 | unsigned(b) << 12 | unsigned(c) << 6 | unsigned(d);
+    z.push_back(char(v >> 16));
+    if (!pad2)
+      z.push_back(char(v >> 8));
+    if (!pad3)
+      z.push_back(char(v));
+  }
+  const unsigned long long size = ZSTD_getFrameContentSize(z.data(), z.size());
+  if (size == ZSTD_CONTENTSIZE_ERROR || size == ZSTD_CONTENTSIZE_UNKNOWN || size > (1u << 20))
+    return false;
+  out.resize(size_t(size));
+  const size_t n = ZSTD_decompress(out.data(), out.size(), z.data(), z.size());
+  return !ZSTD_isError(n) && n == out.size();
 }
 
 class ByteWriter {
@@ -916,15 +962,16 @@ std::vector<std::unique_ptr<Job>> LoadList() {
     std::ifstream in(path, std::ios::binary);
     std::string line;
     std::vector<char> record;
-    bool header = false;
+    bool header = false, zstd = true;
     size_t lines = 0, bad = 0;
+    std::vector<std::vector<char>> hex_records;  // a hex list's records, written again as zstd lines
     while (in && std::getline(in, line)) {
       if (!line.empty() && line.back() == '\r')
         line.pop_back();
       if (line.empty())
         continue;
       if (line[0] == '#') {
-        if (!header && !ListHeaderOk(line))
+        if (!header && !ListHeaderOk(line, zstd))
           break;  // another version's list
         header = true;
         continue;
@@ -933,12 +980,15 @@ std::vector<std::unique_ptr<Job>> LoadList() {
         break;  // not a pipeline list
       ++lines;
       auto job = std::make_unique<Job>();
-      if (!ListLineBytes(line, record) || !DecodeRecord(record.data(), record.size(), *job)) {
+      if (!ListLineBytes(line, record, zstd) || !DecodeRecord(record.data(), record.size(), *job)) {
         ++bad;
         continue;
       }
-      if (seen.insert(job->hash).second)
+      if (seen.insert(job->hash).second) {
         jobs.push_back(std::move(job));
+        if (!zstd)
+          hex_records.push_back(record);
+      }
     }
     in.close();
     if (!header) {
@@ -950,6 +1000,17 @@ std::vector<std::unique_ptr<Job>> LoadList() {
       jobs.clear();
     } else {
       RGPU_INFO("Pipeline list {}: {} pipelines ({} lines, {} not read)", path.string(), jobs.size(), lines, bad);
+      if (!zstd) {
+        // TW2 (2026-11-15): hex lines (the first text form): written again as zstd lines.
+        std::string text = ListHeaderLine();
+        for (const std::vector<char> &r : hex_records)
+          text += ListLine(r);
+        std::ofstream outf(path, std::ios::binary | std::ios::trunc);
+        if (outf)
+          outf.write(text.data(), std::streamsize(text.size()));
+        RGPU_INFO("Pipeline list {}: hex lines written again as zstd lines ({} pipelines)", path.string(),
+                  hex_records.size());
+      }
     }
   } else {
     // @T@ (2026-11-15): the binary list of before, converted once (the .bin kept as .bin.converted).
