@@ -21,7 +21,6 @@ A settings menu at the first start (smash A button after launching homebrew to s
 
 ## Known bugs:
 - Game may randomly not start when docked to 1080p TV
-- Achievements texts are extracted only from language you choose first time, it's updated only after getting next achievement, to fix
 
 ## Performance
 
