@@ -141,7 +141,10 @@ constexpr Language kLanguages[] = {
     // same order.
     {"polish", "Polski", 11}, {"czech", "Čeština", 1}, {"hungarian", "Magyar", 1}, {"russian", "Русский", 12},
     {"japanese", "日本語", 2},
-    {"chinese", "简体中文", 10},  // drawn with the system's Chinese fonts (ui_language.h UseSystemFallbackFonts)
+    // TW2 (2026-11-15): Traditional Chinese, as the game's own Chinese (the Xbox 360's language 8; it was the
+    // Simplified name, text and language 10). Drawn with the system's Chinese fonts (ui_language.h
+    // UseSystemFallbackFonts).
+    {"chinese", "繁體中文", 8},
     // TW2 (2026-11-15, the user: "if Xbox supports it then add it"): Turkish. The Xbox 360's language 14 (Xenia
     // Canary's list; XGetLanguage passes it on). The game's Xbox 360 build has no Turkish text of its own.
     {"turkish", "Türkçe", 14},
@@ -154,7 +157,7 @@ constexpr int kLanguageCount = int(sizeof(kLanguages) / sizeof(kLanguages[0]));
 constexpr const char *kCameraNames[] = {
     "Camera speed",    "Kamerageschwindigkeit", "Vitesse de la caméra", "Velocidad de la cámara",
     "Velocità della telecamera", "Szybkość kamery", "Rychlost kamery", "Kamera sebessége",
-    "Скорость камеры", "カメラ速度",            "镜头速度",             "Kamera hızı",
+    "Скорость камеры", "カメラ速度",            "鏡頭速度",             "Kamera hızı",
 };
 static_assert(sizeof(kCameraNames) / sizeof(kCameraNames[0]) == sizeof(kLanguages) / sizeof(kLanguages[0]),
               "a camera row name for each language");
@@ -171,7 +174,7 @@ constexpr const char *kRes720Notes[] = {
     "A 3D jelenet 1280x720-ban, a képernyő saját méretében: nincs nyújtás 672 sorból, kb. 5%-kal több GPU-munka.",
     "3D-сцена в 1280x720, в размере экрана: без растяжения с 672 строк, примерно на 5% больше работы GPU.",
     "3Dシーンを画面と同じ1280x720で描画：672ラインからの引き伸ばしなし、GPU負荷は約5%増。",
-    "以屏幕本身的 1280x720 渲染 3D 场景：不再从 672 行拉伸，GPU 工作量约增加 5%。",
+    "以螢幕本身的 1280x720 渲染 3D 場景：不再從 672 行拉伸，GPU 工作量約增加 5%。",
     "3D sahne ekranın kendi boyutu olan 1280x720'de: 672 satırdan esnetilmez, yaklaşık %5 daha fazla GPU yükü.",
 };
 static_assert(sizeof(kRes720Notes) / sizeof(kRes720Notes[0]) == sizeof(kLanguages) / sizeof(kLanguages[0]),
@@ -196,7 +199,7 @@ constexpr GameLanguage kGameLanguages[] = {
     {"czech", "\xC4\x8C" "e\xC5\xA1tina", "cz", "CZ", 1, 6},
     {"hungarian", "Magyar", "hu", "HU", 1, 7},
     {"russian", "\xD0\xA0\xD1\x83\xD1\x81\xD1\x81\xD0\xBA\xD0\xB8\xD0\xB9", "ru", "RU", 12, 8},
-    {"chinese", "简体中文", "zh", "ZH", 10, 10},
+    {"chinese", "繁體中文", "zh", "ZH", 8, 10},
     // TW2 (2026-11-14): Japanese (jp0.w2strings; the game's code table has JP). In its own script: the system's
     // standard font is the Japanese one. Xbox language 2.
     {"japanese", "\xE6\x97\xA5\xE6\x9C\xAC\xE8\xAA\x9E", "jp", "JP", 2, 9},
@@ -652,47 +655,47 @@ constexpr Strings kStrings[] = {
         "オン",
         "フレームレートを保つため、ゲームプレイ中に3D解像度を下げます(表示の%まで)。オフ:下げません。",
     },
-    {   // 简体中文 (TW2, 2026-11-14)
-        "设置",
-        "语言",
-        "帧间隔",
-        "分辨率",
-        "抗锯齿",
-        "放大算法",
-        "开始游戏",
-        "关",
-        "双线性",
+    {   // 繁體中文 (TW2, 2026-11-14; Traditional since 2026-11-15)
+        "設定",
+        "語言",
+        "幀間隔",
+        "解析度",
+        "抗鋸齒",
+        "放大演算法",
+        "開始遊戲",
+        "關",
+        "雙線性",
         "%d  (60 Hz 下 %d fps)",
-        "游戏的文本和菜单。",
-        "每帧的屏幕刷新次数:1 = 每次刷新。预渲染影片始终以 30 fps 播放。",
-        "实验性:3D 场景以 1024x576 渲染,低于游戏原本的分辨率:GPU 负载减少约 36%,再放大到输出分辨率。",
-        "游戏原本的 3D 分辨率。",
-        "不使用抗锯齿。",
-        "游戏自带的抗锯齿。",
+        "遊戲的文字和選單。",
+        "每幀的螢幕更新次數:1 = 每次更新。預渲染影片始終以 30 fps 播放。",
+        "實驗性:3D 場景以 1024x576 渲染,低於遊戲原本的解析度:GPU 負載減少約 36%,再放大到輸出解析度。",
+        "遊戲原本的 3D 解析度。",
+        "不使用抗鋸齒。",
+        "遊戲內建的抗鋸齒。",
         "在 1280x720 下不使用。",
-        "双线性:开销最小,画面比其他算法柔和。",
-        "放大画面时使用 Lanczos,缩小时使用双线性。",
-        "放大画面时使用 AMD FSR 1,缩小时使用双线性。",
-        "保存这些设置并开始游戏。",
-        "上 / 下:选择 · A:打开 · 左 / 右:更改 · +:开始游戏\n游戏启动时按住 A 可再次打开此菜单。",
-        "重置设置",
-        "将所有设置恢复为默认值(语言保持不变)。",
-        "AMD FSR 3.1:时间性抗锯齿;也会把较低的分辨率放大到输出分辨率。",
-        "由 FSR 3.1(抗锯齿)完成。",
-        "掌机模式设置",
-        "电视模式设置",
-        "游戏在掌机模式下启动时使用的画面设置。",
-        "游戏在底座(电视)模式下启动时使用的画面设置。",
-        " 主机当前处于此模式。",
-        "实验性:3D 场景以 1600x900 渲染,GPU 负载约为 1024x576 的 2.4 倍。最适合 1080p 电视。",
-        "实验性:3D 场景以 1920x1080 渲染,GPU 负载约为 1024x576 的 3.5 倍。最适合 1080p 电视。",
-        "此分辨率下使用双线性。",
-        " 仅在主机的电视分辨率为 1080p 时使用。",
-        "双线性,仅在主机的电视分辨率为 720p 时使用(画面会被缩小)。",
-        "上 / 下:选择 · 左 / 右:更改 · B:返回",
-        "动态分辨率",
-        "开",
-        "在游戏过程中降低 3D 分辨率(最低到所示百分比)以保持帧率。关:从不降低。",
+        "雙線性:開銷最小,畫面比其他演算法柔和。",
+        "放大畫面時使用 Lanczos,縮小時使用雙線性。",
+        "放大畫面時使用 AMD FSR 1,縮小時使用雙線性。",
+        "儲存這些設定並開始遊戲。",
+        "上 / 下:選擇 · A:開啟 · 左 / 右:更改 · +:開始遊戲\n遊戲啟動時按住 A 可再次開啟此選單。",
+        "重設設定",
+        "將所有設定恢復為預設值(語言保持不變)。",
+        "AMD FSR 3.1:時間性抗鋸齒;也會把較低的解析度放大到輸出解析度。",
+        "由 FSR 3.1(抗鋸齒)完成。",
+        "手提模式設定",
+        "TV模式設定",
+        "遊戲在手提模式下啟動時使用的畫面設定。",
+        "遊戲在底座(TV)模式下啟動時使用的畫面設定。",
+        " 主機目前處於此模式。",
+        "實驗性:3D 場景以 1600x900 渲染,GPU 負載約為 1024x576 的 2.4 倍。最適合 1080p 電視。",
+        "實驗性:3D 場景以 1920x1080 渲染,GPU 負載約為 1024x576 的 3.5 倍。最適合 1080p 電視。",
+        "此解析度下使用雙線性。",
+        " 僅在主機的電視解析度為 1080p 時使用。",
+        "雙線性,僅在主機的電視解析度為 720p 時使用(畫面會被縮小)。",
+        "上 / 下:選擇 · 左 / 右:更改 · B:返回",
+        "動態解析度",
+        "開",
+        "在遊戲過程中降低 3D 解析度(最低到所示百分比)以保持幀率。關:從不降低。",
     },
     {   // Türkçe (TW2, 2026-11-15; tools/ui_texts_tr.py)
         "Ayarlar",
@@ -846,18 +849,18 @@ constexpr AchStrings kAchStrings[] = {
         "上 / 下:スクロール · B:戻る",
         "{Y}/{M}/{D}  {h}:{m}",
     },
-    {   // 简体中文 (TW2, 2026-11-14)
+    {   // 繁體中文 (TW2, 2026-11-14; Traditional since 2026-11-15)
         "成就",
-        "已解锁的成就和完整的成就列表。",
+        "已解鎖的成就和完整的成就列表。",
         "成就",
-        "已解锁的成就",
+        "已解鎖的成就",
         "全部成就",
-        "你已解锁的成就。",
-        "游戏中的全部成就(未解锁的显示为暗色)。",
-        "尚未解锁任何成就。",
-        "启动一次游戏后,这里会显示它的成就。",
-        "上 / 下:选择 · A:打开 · B:返回",
-        "上 / 下:滚动 · B:返回",
+        "你已解鎖的成就。",
+        "遊戲中的全部成就(未解鎖的顯示為暗色)。",
+        "尚未解鎖任何成就。",
+        "啟動一次遊戲後,這裡會顯示它的成就。",
+        "上 / 下:選擇 · A:開啟 · B:返回",
+        "上 / 下:捲動 · B:返回",
         "{Y}/{M}/{D}  {h}:{m}",
     },
     {   // Türkçe (TW2, 2026-11-15)
@@ -1523,6 +1526,8 @@ bool ShowMenu(Settings &s, PadState &pad) {
         dirty = true;
       }
       }  // level 0
+      // TW2 (2026-11-15): with Chinese chosen every CJK character is drawn in the system's Chinese font.
+      renut::nxs::SetCjkFromFallbacks(g_choices[s.language].base == renut::nxs::kUiChinese);
       if (dirty) {
         dirty = false;
         drawn = 0;

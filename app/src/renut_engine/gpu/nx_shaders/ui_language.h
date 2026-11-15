@@ -1,6 +1,6 @@
 // tw2de (2026-10-25): the language of the port's own screens (the boot menu, the shader pre-pass, the in-game
 // "Compiling shaders..." notice): 0 English, 1 German, 2 French, 3 Spanish, 4 Italian, the boot menu's order.
-// TW2 (2026-11-14): 5 Polish, 6 Czech, 7 Hungarian, 8 Russian, 9 Japanese, 10 Chinese (Simplified; drawn with the
+// TW2 (2026-11-14): 5 Polish, 6 Czech, 7 Hungarian, 8 Russian, 9 Japanese, 10 Chinese (Traditional; drawn with the
 // system's Chinese fonts: UseSystemFallbackFonts) (boot_menu_switch.cpp's kLanguages). The
 // language comes from the game's language code the boot menu sets (tw2de_game_language: the Xbox language is English
 // for Czech and Hungarian); with none set, from the Xbox language as before.
@@ -22,6 +22,7 @@ REXCVAR_DECLARE(std::string, tw2de_game_language);  // cpu/tw2de_language.cpp
 namespace renut::nxs {
 
 constexpr int kUiLanguageCount = 12;  // TW2 (2026-11-15): 11 Turkish
+constexpr int kUiChinese = 10;
 
 inline int UiLanguage() {
   const std::string code = REXCVAR_GET(tw2de_game_language);
@@ -68,14 +69,20 @@ inline int SystemUiLanguage() {
 }
 
 // TW2 (2026-11-14): the system's Chinese fonts as the fallbacks of the text functions (prepass_screen.h): the
-// standard font every screen of the port loads is the Japanese / Western one and has no Simplified Chinese. pl has to
-// be initialised by the caller and stay so while the text is drawn (the fonts are its shared memory).
-inline void UseSystemFallbackFonts() {
-  PlFontData zh{}, ext{};
-  const bool a = R_SUCCEEDED(plGetSharedFontByType(&zh, PlSharedFontType_ChineseSimplified));
-  const bool b = R_SUCCEEDED(plGetSharedFontByType(&ext, PlSharedFontType_ExtChineseSimplified));
+// standard font every screen of the port loads is the Japanese / Western one. pl has to be initialised by the caller
+// and stay so while the text is drawn (the fonts are its shared memory).
+// TW2 (2026-11-15): the Traditional Chinese font first (the port's Chinese text is Traditional now, as the game's
+// own), the Simplified one for what it lacks (a language pack's text). ui_language: the language of the text to
+// draw; with Chinese every CJK character comes from these fonts (SetCjkFromFallbacks: the standard font has most
+// Traditional characters too, in its Japanese shapes).
+inline void UseSystemFallbackFonts(int ui_language) {
+  PlFontData zh{}, more{};
+  const bool a = R_SUCCEEDED(plGetSharedFontByType(&zh, PlSharedFontType_ChineseTraditional));
+  const bool b = R_SUCCEEDED(plGetSharedFontByType(&more, PlSharedFontType_ChineseSimplified));
   SetFallbackFonts(a ? static_cast<const uint8_t *>(zh.address) : nullptr, a ? zh.size : 0,
-                   b ? static_cast<const uint8_t *>(ext.address) : nullptr, b ? ext.size : 0);
+                   b ? static_cast<const uint8_t *>(more.address) : nullptr, b ? more.size : 0);
+  SetCjkFromFallbacks(ui_language == kUiChinese);
 }
+inline void UseSystemFallbackFonts() { UseSystemFallbackFonts(UiLanguage()); }
 
 }  // namespace renut::nxs

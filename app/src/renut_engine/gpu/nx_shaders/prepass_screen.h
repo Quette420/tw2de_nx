@@ -66,6 +66,10 @@ bool RasterGlyphs(const uint8_t *font, size_t font_size, float px, const std::ve
 // code points from that its own font lacks: the system's Chinese fonts (ui_language.h UseSystemFallbackFonts). The
 // bytes are the caller's and have to stay while text is drawn; null: none.
 void SetFallbackFonts(const uint8_t *font0, size_t size0, const uint8_t *font1, size_t size1);
+// TW2 (2026-11-15): on: every CJK character a fallback has comes from it (Chinese text: the first font, the Japanese
+// one, has most Traditional Chinese characters too, in its own shapes). Off (as at start): only in a line with a
+// character the first font lacks, as before.
+void SetCjkFromFallbacks(bool on);
 
 // tw2de (2026-10-25): the boot menu (boot_menu_switch.cpp) on the same background: rows of a label and a value,
 // one selected; a disabled row is drawn dimmed (its value fixed). A row with no value is an action ("Start the game").

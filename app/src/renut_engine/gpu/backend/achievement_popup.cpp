@@ -178,8 +178,8 @@ void WriteNamesLocked() {
   };
   // TW2 (2026-11-16, the user: with Polski chosen the boot menu's achievements stayed English): every language the
   // boot menu has a key for and the Xbox 360 a string table. This game's data has English, German, French, Spanish,
-  // Italian, Polish, Russian and Traditional Chinese. "chinese" is the simplified table when there is one, else the
-  // traditional one (insert keeps the first).
+  // Italian, Polish, Russian and Traditional Chinese. "chinese" is the traditional table when there is one (the boot
+  // menu's Chinese is Traditional: 2026-11-15), else the simplified one (insert keeps the first).
   static constexpr Lang kLangs[] = {{rex::system::XLanguage::kEnglish, "english"},
                                     {rex::system::XLanguage::kGerman, "german"},
                                     {rex::system::XLanguage::kFrench, "french"},
@@ -188,8 +188,8 @@ void WriteNamesLocked() {
                                     {rex::system::XLanguage::kPolish, "polish"},
                                     {rex::system::XLanguage::kRussian, "russian"},
                                     {rex::system::XLanguage::kJapanese, "japanese"},
-                                    {rex::system::XLanguage::kSChinese, "chinese"},
                                     {rex::system::XLanguage::kTChinese, "chinese"},
+                                    {rex::system::XLanguage::kSChinese, "chinese"},
                                     {rex::system::XLanguage::kTurkish, "turkish"}};
   toml::table root;
   root.insert("title_id", fmt::format("{:08X}", ks->title_id()));
@@ -291,7 +291,7 @@ bool StartNextLocked(VideoState &s, uint32_t out_h) {
   // achievements.toml), in the system's font; the baked font if that cannot be had.
   // TW2 (2026-11-14): Polish, Czech, Hungarian, Russian and Japanese by the game's language (ui_language.h: the
   // Xbox language cannot tell Czech and Hungarian from English).
-  static constexpr const char *kHeaderMore[] = {"Osiągnięcie odblokowane", "Úspěch odemčen", "Teljesítmény feloldva", "Достижение получено", "実績を解除しました", "成就已解锁",
+  static constexpr const char *kHeaderMore[] = {"Osiągnięcie odblokowane", "Úspěch odemčen", "Teljesítmény feloldva", "Достижение получено", "実績を解除しました", "成就已解鎖",
                                                "Başarı kilidi açıldı"};  // TW2 (2026-11-15): Turkish
   const int ui_language = renut::nxs::UiLanguage();
   const std::string header_default =

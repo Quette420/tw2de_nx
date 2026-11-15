@@ -387,6 +387,7 @@ struct Fallback {
   bool ok = false;
 };
 Fallback g_fallback[2];
+bool g_cjk_from_fallbacks = false;  // TW2 (2026-11-15): SetCjkFromFallbacks
 
 bool InFallback(uint32_t cp, const stbtt_fontinfo **font) {
   for (const Fallback &f : g_fallback) {
@@ -408,7 +409,7 @@ const stbtt_fontinfo *FontFor(const stbtt_fontinfo *first, uint32_t cp, bool cjk
   return font;
 }
 bool CjkFirst(const stbtt_fontinfo *first, uint32_t cp) {
-  return cp >= 0x2E80 && !stbtt_FindGlyphIndex(first, int(cp)) && InFallback(cp, nullptr);
+  return cp >= 0x2E80 && (g_cjk_from_fallbacks || !stbtt_FindGlyphIndex(first, int(cp))) && InFallback(cp, nullptr);
 }
 bool CjkFirst(const stbtt_fontinfo *first, const std::string &s) {
   if (!g_fallback[0].ok && !g_fallback[1].ok)
@@ -427,6 +428,8 @@ void SetFallbackFonts(const uint8_t *font0, size_t size0, const uint8_t *font1, 
     g_fallback[i].ok = fonts[i] && sizes[i] &&
                        stbtt_InitFont(&g_fallback[i].info, fonts[i], stbtt_GetFontOffsetForIndex(fonts[i], 0)) != 0;
 }
+
+void SetCjkFromFallbacks(bool on) { g_cjk_from_fallbacks = on; }
 
 void PrepassScreen::TextInk(float px, int &top, int &bottom) {
   top = 0;

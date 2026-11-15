@@ -36,7 +36,7 @@ const char *NoticeText() {
       "Compiling shaders...", "Shader werden kompiliert...", "Compilation des shaders...", "Compilando shaders...",
       "Compilazione degli shader...",
       // TW2 (2026-11-14): Polish, Czech, Hungarian, Russian, Japanese
-      "Kompilowanie shaderów...", "Kompilace shaderů...", "Shaderek fordítása...", "Компиляция шейдеров...", "シェーダーをコンパイル中...", "正在编译着色器...",
+      "Kompilowanie shaderów...", "Kompilace shaderů...", "Shaderek fordítása...", "Компиляция шейдеров...", "シェーダーをコンパイル中...", "正在編譯著色器...",
       "Gölgelendiriciler derleniyor...",  // TW2 (2026-11-15): Turkish
   };
   return tw2de::PortText("notice", kText[renut::nxs::UiLanguage()]);  // tw2de: a language pack's

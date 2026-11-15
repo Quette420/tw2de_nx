@@ -262,27 +262,27 @@ constexpr PrepassStrings kPrepassStrings[kUiLanguageCount] = {
         " · 合計:{}",
         " (ステップ1の所要時間:{})",
     },
-    {   // 简体中文 (TW2, 2026-11-14)
+    {   // 繁體中文 (TW2, 2026-11-14; Traditional since 2026-11-15)
         ",", false,
-        "正在准备着色器",
-        "此过程只需进行一次,结果保存在 SD 卡上。完成后游戏将启动。\n可以随时关闭游戏:下次启动时会从中断处继续。",
-        "第 1 步(共 4 步)· 优化已保存的着色器",
-        "第 1 步(共 4 步)· 在游戏文件中查找着色器",
-        "第 2 步(共 4 步)· 重新编译已保存的着色器",
-        "第 2 步(共 4 步)· 编译着色器",
-        "第 3 步(共 4 步)· 生成中间形式",
-        "第 4 步(共 4 步)· 创建排序索引",
-        "正在检查着色器...",
-        "{} / {} 个着色器",
-        "{} / {} MB · 找到 {} 个着色器,其中 {} 个为新增",
-        " · {} 个失败",
-        "已编译 {} 个着色器",
-        "剩余不到 2 分钟",
-        "剩余约 {} 分钟",
-        "剩余约 {} 小时",
-        "此步骤:已用 {}",
-        " · 总计:{}",
-        " (第 1 步用时 {})",
+        "正在準備著色器",
+        "此過程只需進行一次,結果儲存在 SD 卡上。完成後遊戲將啟動。\n可以隨時關閉遊戲:下次啟動時會從中斷處繼續。",
+        "第 1 步(共 4 步)· 最佳化已儲存的著色器",
+        "第 1 步(共 4 步)· 在遊戲檔案中尋找著色器",
+        "第 2 步(共 4 步)· 重新編譯已儲存的著色器",
+        "第 2 步(共 4 步)· 編譯著色器",
+        "第 3 步(共 4 步)· 產生中間形式",
+        "第 4 步(共 4 步)· 建立排序索引",
+        "正在檢查著色器...",
+        "{} / {} 個著色器",
+        "{} / {} MB · 找到 {} 個著色器,其中 {} 個為新增",
+        " · {} 個失敗",
+        "已編譯 {} 個著色器",
+        "剩餘不到 2 分鐘",
+        "剩餘約 {} 分鐘",
+        "剩餘約 {} 小時",
+        "此步驟:已用 {}",
+        " · 總計:{}",
+        " (第 1 步用時 {})",
     },
     {   // Türkçe (TW2, 2026-11-15)
         ".", true,
@@ -423,12 +423,12 @@ constexpr AppletStrings kAppletStrings[kUiLanguageCount] = {
      "tw2deを起動してください(アルバムからではなく)。",
      "いずれかのボタンを押すと終了します。",
     },
-    {   // 简体中文 (TW2, 2026-11-14)
-     "不支持小程序模式",
-     "游戏需要只有完整应用程序模式才能提供的内存。",
-     "在 HOME 菜单中启动任意游戏时按住 R,然后在打开的 homebrew 菜单中",
-     "启动 tw2de(不要从相册启动)。",
-     "按任意键退出。",
+    {   // 繁體中文 (TW2, 2026-11-14; Traditional since 2026-11-15)
+     "不支援小程式模式",
+     "遊戲需要只有完整應用程式模式才能提供的記憶體。",
+     "在 HOME 選單中啟動任意遊戲時按住 R,然後在開啟的 homebrew 選單中",
+     "啟動 tw2de(不要從相簿啟動)。",
+     "按任意鍵離開。",
     },
     {   // Türkçe (TW2, 2026-11-15)
      "Applet modu desteklenmiyor",
@@ -453,18 +453,19 @@ bool RunningAsApplet() {
 // Memory: an applet has about 250 MB with the NRO in it; the screen peaks around 25 MB (the 1920x1080 picture while
 // it is decoded and scaled) and frees it all before returning.
 static void ShowAppletModeError(const std::string &game_root) {
+  const int applet_language = SystemUiLanguage();  // TW2 (2026-11-15): once, for the text and the fonts
   PlFontData font{};
   const bool pl = R_SUCCEEDED(plInitialize(PlServiceType_User));
   if (pl) {
     plGetSharedFontByType(&font, PlSharedFontType_Standard);
-    renut::nxs::UseSystemFallbackFonts();  // TW2 (2026-11-14): Chinese
+    renut::nxs::UseSystemFallbackFonts(applet_language);  // TW2 (2026-11-14): Chinese
   }
   {
     PrepassScreen screen;
     const bool hd = ScreenWants1080p();  // tw2de (2026-11-07)
     screen.Init(game_root + "/nxeart", static_cast<const uint8_t *>(font.address), font.size, hd ? 1.5f : 1.0f);
     ScreenText text;
-    const AppletStrings &a = kAppletStrings[SystemUiLanguage()];
+    const AppletStrings &a = kAppletStrings[applet_language];
     text.title = a.title;
     text.step = a.step;
     text.detail = a.detail;
