@@ -14,7 +14,6 @@ A settings menu at the first start (smash A button after launching homebrew to s
 - Anti-aliasing: off, FXAA (the game's own, the default) or AMD FSR 3.1
 - Upscaler: bilinear (the default), Lanczos or AMD FSR 1
 - Dynamic resolution
-- Camera speed: 1% to 100%
 - The list of achievements
 
 Additional improvements:
