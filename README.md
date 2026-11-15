@@ -33,7 +33,7 @@ The Xbox 360 release with Title ID `4E4D0855` and Media ID `6FEB834A`, with titl
 
 This release has audio in English, German and French, and subtitles in English, German, French, Spanish, Italian and Polish. You can add more languages from other Xbox 360 releases. More below.
 
-Skip to "Game Data" section if you downloaded NRO from Releases.
+Skip to "Game data" section if you downloaded NRO from Releases.
 
 ## Tools (Windows)
 ```
