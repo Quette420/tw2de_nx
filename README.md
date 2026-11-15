@@ -67,8 +67,8 @@ On the SD card, into `/switch/tw2de_nx/assets`:
 2. Copy the contents of Disc 2, skipping every file that is already there under the same name.
 3. Copy `default.xexp` from the extracted title update 1 (`disc001/default.xexp`).
 
-To add another audio language, extract its `.w2speech` file (for example `pl0.w2speech`) from an Xbox 360 release
-that has that audio and copy it to `assets/Data`.
+To add another audio language, extract its `.w2speech` file (for example `pl0.w2speech`) from an Xbox 360 release. For another text language, search for `.w2strings` file. Files from PC won't work because of endianness.
+Copy them to `switch/tw2de_nx/assets/Data`.
 
 The first start compiles the game's shaders on the console.
 
