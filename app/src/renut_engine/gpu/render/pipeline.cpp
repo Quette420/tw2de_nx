@@ -69,9 +69,12 @@ REXCVAR_DEFINE_BOOL(tw2de_deko3d_variant_log, false, "Game/Renut",
 #include "renut_engine/gpu/render/shader_library.h"
 #include "renut_engine/gpu/tw2de_renut_tuning.h"
 
-REXCVAR_DEFINE_STRING(renut_pipeline_list, "pipeline_list.bin", "Nuts&Bolts/Graphics",
+// TW2 (2026-11-15, the user: merge the lists of other players' runs): text, one pipeline a line (ListLine). A list in
+// the binary form of before (the same name with .bin) is converted at the first start and kept as .bin.converted.
+REXCVAR_DEFINE_STRING(renut_pipeline_list, "pipeline_list.txt", "Nuts&Bolts/Graphics",
                       "The pipelines the renderer has built, which it builds ahead of use at the "
-                      "next start (delete it to start over)");
+                      "next start (delete it to start over). Text: a header line, then one pipeline a line in hex; "
+                      "lists of other runs can be joined (duplicates are ignored)");
 
 namespace renut::gpu {
 
@@ -577,6 +580,47 @@ struct ListHeader {
   u32 streams;
 };
 
+// TW2 (2026-11-15): the text form. The first line "# renut pipeline list: version V key K streams S", then each
+// record (EncodeRecord's bytes, without the size before them) as lowercase hex on a line of its own. Lines starting
+// with '#' after the first are skipped (the headers of joined lists), and so are lines that do not decode (a line cut
+// short when the game was closed). Joining the files of several runs, or sort -u (the header sorts first), merges them.
+std::string ListHeaderLine() {
+  return fmt::format("# renut pipeline list: version {} key {} streams {}\n", kListVersion, sizeof(PipelineKey),
+                     kMaxVertexStreams);
+}
+bool ListHeaderOk(const std::string &line) {
+  const size_t at = line.find("version ");
+  unsigned version = 0, key = 0, streams = 0;
+  return at != std::string::npos &&
+         std::sscanf(line.c_str() + at, "version %u key %u streams %u", &version, &key, &streams) == 3 &&
+         version == kListVersion && key == sizeof(PipelineKey) && streams == kMaxVertexStreams;
+}
+std::string ListLine(const std::vector<char> &record) {
+  static constexpr char kHex[] = "0123456789abcdef";
+  std::string line(record.size() * 2 + 1, '\n');
+  for (size_t i = 0; i < record.size(); ++i) {
+    const unsigned b = static_cast<unsigned char>(record[i]);
+    line[2 * i] = kHex[b >> 4];
+    line[2 * i + 1] = kHex[b & 15];
+  }
+  return line;
+}
+bool ListLineBytes(const std::string &line, std::vector<char> &out) {
+  if (line.size() % 2)
+    return false;
+  out.resize(line.size() / 2);
+  auto nibble = [](char c) -> int {
+    return c >= '0' && c <= '9' ? c - '0' : c >= 'a' && c <= 'f' ? c - 'a' + 10 : c >= 'A' && c <= 'F' ? c - 'A' + 10 : -1;
+  };
+  for (size_t i = 0; i < out.size(); ++i) {
+    const int hi = nibble(line[2 * i]), lo = nibble(line[2 * i + 1]);
+    if (hi < 0 || lo < 0)
+      return false;
+    out[i] = char(hi << 4 | lo);
+  }
+  return true;
+}
+
 class ByteWriter {
 public:
   template <typename T>
@@ -774,18 +818,12 @@ struct PipelineList {
         return;
       }
       if (fresh) {
-        ListHeader header{};
-        std::memcpy(header.magic, kListMagic, 4);
-        header.version = kListVersion;
-        header.key_size = sizeof(PipelineKey);
-        header.streams = kMaxVertexStreams;
-        std::fwrite(&header, sizeof(header), 1, out);
+        const std::string header = ListHeaderLine();  // TW2 (2026-11-15): text
+        std::fwrite(header.data(), 1, header.size(), out);
       }
     }
-    const std::vector<char> record = EncodeRecord(key, layout);
-    const u32 size = u32(record.size());
-    std::fwrite(&size, sizeof(size), 1, out);
-    std::fwrite(record.data(), 1, record.size(), out);
+    const std::string line = ListLine(EncodeRecord(key, layout));
+    std::fwrite(line.data(), 1, line.size(), out);
     std::fflush(out);
     unsynced = true;
     if (std::chrono::steady_clock::now() - last_sync >= kListSync)
@@ -807,9 +845,10 @@ namespace {
 
 // The records of the list file; empty (and the file started over) when it
 // is missing or from another version.
-std::vector<std::unique_ptr<Job>> LoadList() {
+// TW2 (2026-11-15): the binary list of before (its records kept for the text list it becomes).
+std::vector<std::unique_ptr<Job>> LoadBinaryList(const std::filesystem::path &path, std::unordered_set<uint64_t> &seen,
+                                                 std::vector<std::vector<char>> &records) {
   std::vector<std::unique_ptr<Job>> jobs;
-  const std::filesystem::path path = tw2de::renut_gpu::ShaderDataPath(REXCVAR_GET(renut_pipeline_list));
   std::ifstream in(path, std::ios::binary);
   if (!in)
     return jobs;
@@ -825,12 +864,8 @@ std::vector<std::unique_ptr<Job>> LoadList() {
   // generic pipelines, which the specialised ones draw with until they are built), and the file is written again as
   // version 4.
   const bool v3 = header_ok && header.version == 3 && header.key_size == kListV3KeySize;
-  if (!valid && !v3) {
-    std::error_code ec;
-    std::filesystem::remove(path, ec);
+  if (!valid && !v3)
     return jobs;
-  }
-  std::unordered_set<uint64_t> seen;
   std::vector<char> converted;
   if (v3) {
     ListHeader h4 = header;
@@ -863,16 +898,77 @@ std::vector<std::unique_ptr<Job>> LoadList() {
       std::memcpy(converted.data() + o + sizeof(u32), data, data_size);
     }
     auto job = std::make_unique<Job>();
-    if (DecodeRecord(data, data_size, *job) && seen.insert(job->hash).second)
+    if (DecodeRecord(data, data_size, *job) && seen.insert(job->hash).second) {
       jobs.push_back(std::move(job));
+      records.emplace_back(data, data + data_size);
+    }
     at += size;
   }
-  if (v3) {
-    std::ofstream rewrite(path, std::ios::binary | std::ios::trunc);
-    if (rewrite)
-      rewrite.write(converted.data(), std::streamsize(converted.size()));
-    RGPU_INFO("Pipeline list {}: version 3, {} pipelines kept as version 4 (generic alpha test)", path.string(),
-              jobs.size());
+  return jobs;
+}
+
+std::vector<std::unique_ptr<Job>> LoadList() {
+  std::vector<std::unique_ptr<Job>> jobs;
+  const std::filesystem::path path = tw2de::renut_gpu::ShaderDataPath(REXCVAR_GET(renut_pipeline_list));
+  std::unordered_set<uint64_t> seen;
+  std::error_code ec;
+  if (std::filesystem::exists(path, ec)) {
+    std::ifstream in(path, std::ios::binary);
+    std::string line;
+    std::vector<char> record;
+    bool header = false;
+    size_t lines = 0, bad = 0;
+    while (in && std::getline(in, line)) {
+      if (!line.empty() && line.back() == '\r')
+        line.pop_back();
+      if (line.empty())
+        continue;
+      if (line[0] == '#') {
+        if (!header && !ListHeaderOk(line))
+          break;  // another version's list
+        header = true;
+        continue;
+      }
+      if (!header)
+        break;  // not a pipeline list
+      ++lines;
+      auto job = std::make_unique<Job>();
+      if (!ListLineBytes(line, record) || !DecodeRecord(record.data(), record.size(), *job)) {
+        ++bad;
+        continue;
+      }
+      if (seen.insert(job->hash).second)
+        jobs.push_back(std::move(job));
+    }
+    in.close();
+    if (!header) {
+      // Another version (or not a list): put aside, a new one is started.
+      std::filesystem::rename(path, path.string() + ".old", ec);
+      RGPU_INFO("Pipeline list {}: another version or not a list, kept as {}.old; a new one is started", path.string(),
+                path.string());
+      seen.clear();
+      jobs.clear();
+    } else {
+      RGPU_INFO("Pipeline list {}: {} pipelines ({} lines, {} not read)", path.string(), jobs.size(), lines, bad);
+    }
+  } else {
+    // @T@ (2026-11-15): the binary list of before, converted once (the .bin kept as .bin.converted).
+    std::filesystem::path binary = path;
+    binary.replace_extension(".bin");
+    std::vector<std::vector<char>> records;
+    if (binary != path && std::filesystem::exists(binary, ec)) {
+      jobs = LoadBinaryList(binary, seen, records);
+      std::string text = ListHeaderLine();
+      for (const std::vector<char> &r : records)
+        text += ListLine(r);
+      std::ofstream outf(path, std::ios::binary | std::ios::trunc);
+      if (outf && outf.write(text.data(), std::streamsize(text.size()))) {
+        outf.close();
+        std::filesystem::rename(binary, binary.string() + ".converted", ec);
+        RGPU_INFO("Pipeline list {}: {} pipelines converted to the text list {}", binary.string(), jobs.size(),
+                  path.string());
+      }
+    }
   }
   // Records of shaders this build lacks stay out of 'listed': a later build
   // that has them lists the pipelines again.
