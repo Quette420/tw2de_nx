@@ -11,8 +11,8 @@ A settings menu at the first start (smash A button after launching homebrew to s
 
 - Frame interval: 1 to 4 display refreshes a frame (2, the default, is 30 FPS; 1 is 60 FPS at 60 Hz)
 - Resolution of the 3D scene: 1024x576, 1280x672 (the game's own, the default), 1280x720, 1600x900, 1920x1080
-- Anti-aliasing: off, FXAA (the game's own, the default) or AMD FSR 3.1
-- Upscaler: bilinear (the default), Lanczos or AMD FSR 1
+- Anti-aliasing: off, FXAA (the game's own, the default) or FSR 3.1
+- Upscaler: bilinear (the default), Lanczos or FSR 1
 - Dynamic resolution
 - The list of achievements
 
