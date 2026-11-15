@@ -76,8 +76,7 @@ The first start compiles the game's shaders on the console.
 
 1. Build with `build_switch_batched.bat`, start it on the console and let the shader pre-pass finish.
 2. Build with `pgo_generate_switch_batched.bat` and start `tw2de_nx_pgo.nro` on the console.
-3. Let the intro video play for 30 seconds, go through the main menu to a new game, choose the tutorial, play the
-   whole tutorial, then close the game.
+3. Let the intro video play for 30 seconds, go through the main menu to a new game, choose the tutorial, play the whole tutorial, then close the game.
 4. Copy the `run_*.fxpg` files from the SD card's `/switch/tw2de_nx/pgo` to `pgo/` in the project's root.
 5. Build with `pgo_use_switch_o3_lto_batched.bat`. The final NRO is `out/tw2de_nx/tw2de_nx_o3_lto.nro`.
 
