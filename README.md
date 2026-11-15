@@ -60,7 +60,7 @@ Set `DEVKITPRO` to devkitPro's folder in Windows `PATH` variables.
 1. Put `default.xex` (Disc 1) and `default.xexp` (the extracted title update 1, `disc001/default.xexp`) into
    `app/assets/`.
 2. Run `build_switch_batched.bat`. The result is the folder `out/tw2de_nx`.
-3. Copy `out/tw2de_nx` to the SD card's `/switch`.
+3. Copy `tw2de_nx` to the SD card's `/switch` and from root of repository copy `shaders` folder to `tw2de_nx`°
 
 ## Game data
 
