@@ -22,7 +22,6 @@ A settings menu at the first start (smash A button after launching homebrew to s
 
 ## Known bugs:
 - Game may randomly not start when docked to 1080p TV
-- Dynamic resolution glitches on bottom and right edge of screen while changing resolution (fix is underway)
 
 ## Performance
 
