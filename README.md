@@ -53,9 +53,7 @@ devkitPro is not in winget. Install it with its installer (https://github.com/de
 
     pacman -S switch-dev switch-zlib switch-zstd
 
-Set `DEVKITPRO` to devkitPro's folder in its Windows form, then open a new command prompt:
-
-    setx DEVKITPRO C:/devkitPro
+Set `DEVKITPRO` to devkitPro's folder in Windows `PATH` variables.
 
 ## Building
 
