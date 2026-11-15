@@ -86,6 +86,8 @@ The first start compiles the game's shaders on the console.
 4. Copy the `run_*.fxpg` files from the SD card's `/switch/tw2de_nx/pgo` to `pgo/` in the project's root.
 5. Build with `pgo_use_switch_o3_lto_batched.bat`. The final NRO is `out/tw2de_nx/tw2de_nx_o3_lto.nro`.
 
+A cherry on the cake is to get `tw2de_variants.txt` with shaders collected from whole game run. When this happens, it will be a time to release it as 1.0.0 version.
+
 ## Third-party code
 
 - [reNut](https://github.com/masterspike52/reNut): the project this one started from, and its renderer
