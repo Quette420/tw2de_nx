@@ -28,7 +28,7 @@ Additional improvements:
 
 ## Performance
 
-With the default settings and clocks of 1020 MHz (CPU), 460 MHz (GPU) and 1331 MHz (RAM), the tutorial's dock runs at 30 FPS. It is recommended though to use higher clocks for getting locked 30 FPS experience.
+With the default settings and clocks of 1020 MHz (CPU), 460 MHz (GPU) and 1331 MHz (RAM), the tutorial's dock runs at 30 FPS in handheld / TV 720p. It is recommended though to use higher clocks for getting locked 30 FPS experience.
 
 ## Required game files
 
