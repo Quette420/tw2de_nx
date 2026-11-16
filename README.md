@@ -17,6 +17,7 @@ A settings menu at the first start (smash A button after launching homebrew to s
 - The list of achievements
 
 Additional improvements:
+- A popup when an achievement is unlocked
 - Camera speed in game settings: 1% to 100%
 - 1920x1080 output when docked on a 1080p TV
 - The Switch's buttons in the game's interface (the button pictures and the controller picture)
