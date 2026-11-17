@@ -24,8 +24,8 @@ Additional improvements:
 - Removed any notification about installing on drive and removed option for choosing mass storage from game settings.
 
 ## Known bugs:
-- Game may randomly not start when docked to 1080p TV (possibly fixed from 0.1.4)
-- Main menu may randomly not appear at all (possibly fixed from 0.1.4)
+- Game may randomly not start when docked to 1080p TV
+- Main menu may randomly not appear at all
 
 ## Performance
 
