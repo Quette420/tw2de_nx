@@ -1,4 +1,4 @@
-# tw2de_nx
+# TW2DE NX
 Static Recompilation of The Witcher 2: Definitive Edition 0.0.1.2 for Nintendo Switch
 
 No game files are in this repository. Tested tutorial, prologue and beginning of first act.
