@@ -26,6 +26,7 @@ Additional improvements:
 ## Known bugs:
 - Game may randomly not start when docked to 1080p TV
 - Game may randomly not load user save
+- Main menu may randomly not appear at all
 - Game shows stale frames when using 1280x720 + FXAA + Lanczos + Dynamic resolution
 
 ## Performance
