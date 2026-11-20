@@ -5,6 +5,8 @@ No game files are in this repository. Tested tutorial, prologue and beginning of
 
 If you want to contribute, you can send me `tw2de_variants.txt` and `pipeline_list.txt` from `tw2de_nx/shaders` folder after playing some part of game, the best would be if you would send it after finishing whole game.
 
+Game was confirmed fully playable: https://github.com/recomp-nx/tw2de_nx/issues/6#issuecomment-7048168547
+
 ## Additions over the Xbox 360 release
 
 A settings menu at the first start (smash A button after launching homebrew to show it again), with separate graphics settings for handheld and docked:
