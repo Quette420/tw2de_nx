@@ -3,6 +3,7 @@
 // its swapchain; the work (shader_prepass.h) on three threads pinned to cores 0-2 with the CPU boosted; uam compiling
 // into the deko3d back end's DKSH cache.
 #include "renut_engine/gpu/nx_shaders/shader_prepass_switch.h"
+#include "renut_engine/gpu/nx_shaders/boot_menu_switch.h"
 #include "renut_engine/gpu/nx_shaders/front_end_store.h"
 #include "renut_engine/gpu/nx_shaders/late_spec.h"
 #include "renut_engine/gpu/nx_shaders/nx_lock.h"
@@ -558,6 +559,11 @@ void RunSwitchShaderPrepass(const std::string &game_root) {
   // TW2 (2026-11-15): with FSR 3.1 on (the boot menu has set it by now) the variants' motion-vector twins too
   // (2026-11-16: in no list, shader_prepass.h).
   config.motion = REXCVAR_GET(tw2de_fsr3) != 0;
+  // tw2de (2026-11-21): and those of the other mode's page (Handheld / Docked): a page with FSR 3.1 has its twins
+  // compiled though this start is in the other mode, so starting in that mode compiles nothing.
+  const int fsr3_modes = BootMenuFsr3Modes();
+  if (fsr3_modes >= 0 && (fsr3_modes & 1))
+    config.motion = true;
   config.store_dksh = [](uint64_t key, const std::vector<uint8_t> &dksh) {
     // tw2de (2026-11-08): the recompile test keeps the cache as it is (the same results, and 600 MB more on the
     // card otherwise).

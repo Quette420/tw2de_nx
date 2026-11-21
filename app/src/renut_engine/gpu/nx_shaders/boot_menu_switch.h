@@ -24,6 +24,9 @@ std::string CameraSpeedLabel(const std::string &game_code, int axis);
 // tw2de (2026-11-07): whether the pre-pass and boot menu screens should be 1920x1080: docked (Reverse-NX's mode when
 // it rules) on a 1080p display resolution, as the game's output (render/graphics_options.cpp; tw2de_diag_output 1:
 // never, 2: always). Asks the applet at most twice a second.
+// tw2de (2026-11-21): the Handheld and Docked pages' anti-aliasing: bit 0 one of them is FSR 3.1, bit 1 one of them is
+// not; -1 before the boot menu has applied its settings. The shader pre-pass compiles the forms both pages draw with.
+int BootMenuFsr3Modes();
 bool ScreenWants1080p();
 
 // tw2de (2026-11-07): libnx's framebuffer on the default window at 1280x720 or 1920x1080 (the window's size set to
