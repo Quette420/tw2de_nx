@@ -28,6 +28,8 @@ Additional improvements:
 ## Known bugs:
 - Game may randomly not start when docked to 1080p TV
 - Main menu may randomly not appear at all
+- Some graphics effects are still missing
+- With CPU overclocked, first video's audio crackles
 
 ## Performance
 
